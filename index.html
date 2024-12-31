@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Interactive 3D Piano</title>
+    <style>
+      body {
+        margin: 0;
+        background-color: #e0e0e0;
+      }
+      canvas {
+        display: block;
+      }
+      .label {
+        position: absolute;
+        color: black;
+        font-size: 12px;
+        opacity: 0;
+        transition: opacity 1s ease-in-out, transform 1s ease-out;
+      }
+      #record-button,
+      #playback-button,
+      #lesson-button {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        margin-right: 10px;
+        padding: 10px 20px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+      #record-button:hover,
+      #playback-button:hover,
+      #lesson-button:hover {
+        background-color: #0056b3;
+      }
+      #playback-button {
+        left: 140px;
+      }
+      #lesson-button {
+        left: 270px;
+      }
+      #sheet-music {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: white;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        max-width: 80%;
+        font-family: "Arial", sans-serif;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+      #lesson-selector {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        padding: 10px;
+        background-color: white;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        font-family: "Arial", sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="record-button">Start Recording</button>
+    <button id="playback-button" disabled>Play Recording</button>
+    <button id="lesson-button">Start Lesson</button>
+    <select id="lesson-selector">
+      <option value="twinkle">Twinkle Twinkle Little Star</option>
+      <option value="birthday">Happy Birthday</option>
+      <option value="ode">Ludwig van Beethoven - Ode to Joy</option>
+      <option value="merry">We Wish You a Merry Christmas</option>
+      <option value="jupiter">Gustav Holst - Theme from Jupiter</option>
+    </select>
+    <div id="sheet-music"></div>
+    <script src="https://cdn.jsdelivr.net/npm/three@latest/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@latest/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.39/Tone.min.js"></script>
+    <script>
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0xf0f0f0, 1);
+      document.body.appendChild(renderer.domElement);
+
+      const baseGeometry = new THREE.BoxGeometry(60, 0.5, 6);
+      const baseMaterial = new THREE.MeshStandardMaterial({
+        color: 0xcccccc,
+        metalness: 0.6,
+        roughness: 0.4,
+      });
+      const base = new THREE.Mesh(baseGeometry, baseMaterial);
+      base.position.set(0, -0.25, 0);
+      scene.add(base);
+
+      const whiteKeyMaterial = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        metalness: 0.5,
+        roughness: 0.2,
+      });
+      const blackKeyMaterial = new THREE.MeshStandardMaterial({
+        color: 0x111111,
+        metalness: 0.8,
+        roughness: 0.1,
+      });
+
+      const whiteKeyWidth = 1;
+      const whiteKeyHeight = 0.3;
+      const whiteKeyDepth = 5;
+      const blackKeyWidth = 0.6;
+      const blackKeyHeight = 0.5;
+      const blackKeyDepth = 3;
+
+      const whiteKeys = [];
+      const blackKeys = [];
+      const keys = [];
+      const keyLabels = [];
+
+      const synth = new Tone.Synth().toDestination();
+      const recorder = new Tone.Recorder();
+      synth.connect(recorder);
+
+      let isRecording = false;
+      let recordedNotes = [];
+
+      const noteMapping = [
+        "A0",
+        "A#0",
+        "B0",
+        "C1",
+        "C#1",
+        "D1",
+        "D#1",
+        "E1",
+        "F1",
+        "F#1",
+        "G1",
+        "G#1",
+        "A1",
+        "A#1",
+        "B1",
+        "C2",
+        "C#2",
+        "D2",
+        "D#2",
+        "E2",
+        "F2",
+        "F#2",
+        "G2",
+        "G#2",
+        "A2",
+        "A#2",
+        "B2",
+        "C3",
+        "C#3",
+        "D3",
+        "D#3",
+        "E3",
+        "F3",
+        "F#3",
+        "G3",
+        "G#3",
+        "A3",
+        "A#3",
+        "B3",
+        "C4",
+        "C#4",
+        "D4",
+        "D#4",
+        "E4",
+        "F4",
+        "F#4",
+        "G4",
+        "G#4",
+        "A4",
+        "A#4",
+        "B4",
+        "C5",
+        "C#5",
+        "D5",
+        "D#5",
+        "E5",
+        "F5",
+        "F#5",
+        "G5",
+        "G#5",
+        "A5",
+        "A#5",
+        "B5",
+        "C6",
+        "C#6",
+        "D6",
+        "D#6",
+        "E6",
+        "F6",
+        "F#6",
+        "G6",
+        "G#6",
+        "A6",
+        "A#6",
+        "B6",
+        "C7",
+        "C#7",
+        "D7",
+        "D#7",
+        "E7",
+        "F7",
+        "F#7",
+        "G7",
+        "G#7",
+        "A7",
+        "A#7",
+        "B7",
+        "C8",
+      ];
+
+      for (let i = 0; i < 52; i++) {
+        const note = noteMapping[i];
+        const whiteKeyGeometry = new THREE.BoxGeometry(
+          whiteKeyWidth,
+          whiteKeyHeight,
+          whiteKeyDepth
+        );
+        const whiteKey = new THREE.Mesh(
+          whiteKeyGeometry,
+          whiteKeyMaterial.clone()
+        );
+        whiteKey.position.set(i - 26, 0.15, 0);
+        whiteKey.userData.note = note;
+        scene.add(whiteKey);
+        whiteKeys.push(whiteKey);
+        keys.push(whiteKey);
+
+        const labelDiv = document.createElement("div");
+        labelDiv.className = "label";
+        labelDiv.innerText = note;
+        document.body.appendChild(labelDiv);
+
+        keyLabels.push({ mesh: whiteKey, element: labelDiv });
+      }
+
+      const blackKeyPattern = [0, 1, , 3, 4, , 6, 7, , 9, 10];
+      for (let i = 0; i < 52; i++) {
+        if (blackKeyPattern.includes(i % 7)) {
+          const note = noteMapping[i + 1];
+          const blackKeyGeometry = new THREE.BoxGeometry(
+            blackKeyWidth,
+            blackKeyHeight,
+            blackKeyDepth
+          );
+          const blackKey = new THREE.Mesh(
+            blackKeyGeometry,
+            blackKeyMaterial.clone()
+          );
+          blackKey.position.set(i - 26 + 0.5, 0.35, -1);
+          blackKey.userData.note = note;
+          scene.add(blackKey);
+          blackKeys.push(blackKey);
+          keys.push(blackKey);
+        }
+      }
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+      scene.add(ambientLight);
+
+      const spotlight = new THREE.SpotLight(0xffffff, 2, 100, Math.PI / 4);
+      spotlight.position.set(0, 30, 20);
+      spotlight.castShadow = true;
+      scene.add(spotlight);
+
+      camera.position.set(0, 15, 25);
+      camera.lookAt(0, 0, 0);
+
+      const controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+
+      function onMouseDown(event) {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(keys);
+
+        if (intersects.length > 0) {
+          const key = intersects[0].object;
+          const note = key.userData.note;
+          if (note) {
+            synth.triggerAttackRelease(note, "8n");
+            if (isRecording) {
+              recordedNotes.push({
+                note,
+                time: Tone.now(),
+              });
+            }
+            updateSheetMusic(note);
+          }
+
+          const label = keyLabels.find((k) => k.mesh === key);
+          if (label) {
+            const element = label.element;
+            element.style.opacity = "1";
+            element.style.transform = "translateY(-60px) scale(1.4)";
+            setTimeout(() => {
+              element.style.opacity = "0";
+              element.style.transform = "translateY(0) scale(1)";
+            }, 1000);
+          }
+        }
+      }
+
+      function updateSheetMusic(note) {
+        const sheetMusicDiv = document.getElementById("sheet-music");
+        sheetMusicDiv.innerText += `${note} `;
+      }
+
+      window.addEventListener("mousedown", onMouseDown);
+
+      document
+        .getElementById("record-button")
+        .addEventListener("click", async () => {
+          if (!isRecording) {
+            isRecording = true;
+            recordedNotes = [];
+            document.getElementById("record-button").innerText =
+              "Stop Recording";
+            await recorder.start();
+          } else {
+            isRecording = false;
+            const recording = await recorder.stop();
+            const url = URL.createObjectURL(recording);
+            const anchor = document.createElement("a");
+            anchor.href = url;
+            anchor.download = "recording.wav";
+            anchor.click();
+            document.getElementById("record-button").innerText =
+              "Start Recording";
+            document.getElementById("playback-button").disabled = false;
+          }
+        });
+
+      document
+        .getElementById("playback-button")
+        .addEventListener("click", async () => {
+          if (recordedNotes.length > 0) {
+            const startTime = recordedNotes[0].time;
+            for (const noteData of recordedNotes) {
+              const delay = noteData.time - startTime;
+              setTimeout(() => {
+                synth.triggerAttackRelease(noteData.note, "8n");
+                updateSheetMusic(noteData.note);
+              }, delay * 1000);
+            }
+          }
+        });
+
+      document.getElementById("lesson-button").addEventListener("click", () => {
+        const lessonSelector = document.getElementById("lesson-selector");
+        const selectedLesson = lessonSelector.value;
+
+        if (selectedLesson === "twinkle") {
+          startLesson([
+            "C4",
+            "C4",
+            "G4",
+            "G4",
+            "A4",
+            "A4",
+            "G4",
+            "F4",
+            "F4",
+            "E4",
+            "E4",
+            "D4",
+            "D4",
+            "C4",
+          ]);
+        } else if (selectedLesson === "birthday") {
+          startLesson([
+            "C4",
+            "C4",
+            "D4",
+            "C4",
+            "F4",
+            "E4",
+            "C4",
+            "C4",
+            "D4",
+            "C4",
+            "G4",
+            "F4",
+          ]);
+        } else if (selectedLesson === "ode") {
+          startLesson([
+            "E4",
+            "E4",
+            "F4",
+            "G4",
+            "G4",
+            "F4",
+            "E4",
+            "D4",
+            "C4",
+            "C4",
+            "D4",
+            "E4",
+            "E4",
+            "D4",
+            "C4",
+          ]);
+        } else if (selectedLesson === "merry") {
+          startLesson([
+            "B3",
+            "F4",
+            "F4",
+            "G4",
+            "F4",
+            "E4",
+            "D4",
+            "D4",
+            "D4",
+            "G4",
+            "G4",
+            "A4",
+            "G4",
+            "F4",
+            "E4",
+            "C4",
+            "C4",
+            "A4",
+            "A4",
+            "B4",
+            "A4",
+            "G4",
+            "F4",
+            "D4",
+            "D4",
+            "E4",
+            "F4",
+          ]);
+        } else if (selectedLesson === "jupiter") {
+          startLesson([
+            "C4",
+            "E4",
+            "F4",
+            "G4",
+            "A4",
+            "G4",
+            "F4",
+            "E4",
+            "C4",
+            "E4",
+            "F4",
+            "G4",
+            "F4",
+            "E4",
+            "D4",
+          ]);
+        } else if (selectedLesson === "scales") {
+          // Example of another song
+          startLesson(["C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"]);
+        } else if (selectedLesson === "amazingGrace") {
+          startLesson([
+            "G4",
+            "E4",
+            "G4",
+            "C4",
+            "D4",
+            "E4",
+            "F4",
+            "G4",
+            "E4",
+            "C4",
+            "D4",
+            "C4",
+          ]);
+        } else if (selectedLesson === "hotCrossBuns") {
+          startLesson([
+            "E4",
+            "D4",
+            "C4",
+            "E4",
+            "D4",
+            "C4",
+            "E4",
+            "E4",
+            "E4",
+            "E4",
+            "D4",
+            "C4",
+          ]);
+        }
+      });
+
+      function startLesson(sequence) {
+        let index = 0;
+        const interval = setInterval(() => {
+          if (index < sequence.length) {
+            const note = sequence[index];
+            synth.triggerAttackRelease(note, "8n");
+            updateSheetMusic(note);
+            highlightKey(note);
+            index++;
+          } else {
+            clearInterval(interval);
+          }
+        }, 600);
+      }
+
+      function highlightKey(note) {
+        const key = keys.find((k) => k.userData.note === note);
+        if (key) {
+          key.material.color.set(0xffd700); // Highlight in gold
+          setTimeout(() => {
+            if (key.userData.note.includes("#")) {
+              key.material.color.set(0x111111); // Black key color
+            } else {
+              key.material.color.set(0xffffff); // White key color
+            }
+          }, 500);
+        }
+      }
+
+      function resizeRenderer() {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+      }
+
+      window.addEventListener("resize", resizeRenderer);
+
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+    </script>
+  </body>
+</html>
